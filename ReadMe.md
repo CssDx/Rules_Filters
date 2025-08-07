@@ -1,94 +1,119 @@
-#[!NOTE]**F6 Rules and Filters**[!NOTE]
+# [!NOTE] **F6 Rules and Filters** [!NOTE]
 
-#F6 Filters
+# F6 Filters
 
-##Linux
-###Access to critical files
+## Linux
+### Access to critical files
 /etc/passwd in cmdline
+
 ```
 filter(event_src.vendor = "unix_like" AND (action = "start" OR action = "execute") AND object.process.cmdline match ".*/etc/passwd.*") | select(time, event_src.host, subject.account.name, action, object.process.cwd, object.process.cmdline) | sort(time desc)
 ```
+
 /etc/shadow in cmdline
+
 `
 filter(event_src.vendor = "unix_like" AND (action = "start" OR action = "execute") AND object.process.cmdline match ".*/etc/shadow.*") | select(time, event_src.host, subject.account.name, action, object.process.cwd, object.process.cmdline) | sort(time desc)
 `
+
 acccess to /etc/shadow
+
 `
 filter(((event_src.vendor = "unix_like") AND (object.fullpath match ".*/etc/shadow.*") AND (action = "access" ))) | select(time, event_src.host, subject.account.name, action, object.fullpath, subject.process.cwd, subject.process.meta, object.value) | sort(time desc)
 `
 
 access to private ssh keys
+
 `
 filter(((event_src.vendor = "unix_like") AND (object.fullpath match ".*id_rsa.*") AND (action = "access"))) | select(time, event_src.host, subject.account.name, action, object.fullpath, subject.process.cwd, subject.process.meta, object.value) | sort(time desc)
 `
 
 access to sudoers
+
 `
 filter(((event_src.vendor = "unix_like") AND (object.fullpath match ".*/etc/sudoers.*") AND (action = "access"))) | select(time, event_src.host, subject.account.name, action, object.fullpath, subject.process.cwd, subject.process.meta, object.value) | sort(time desc)
 `
 
 sudoers in cmdline
+
 `
 filter(event_src.vendor = "unix_like" AND (action = "start" OR action = "execute") AND object.process.cmdline match ".*sudoers.*") | select(time, event_src.host, subject.account.name, action, object.process.cwd, object.process.cmdline) | sort(time desc)
 `
 
-###Defense evasion
+### Defense evasion
 
 /etc/ld.so.preload modification
+
 `
 filter(event_src.vendor = "unix_like" AND (object.fullpath match ".*/etc/ld.so.preload.*" OR object.fullpath match ".*/etc/ld.so.conf.*") AND object.state = "w" AND msgid = "openat") | select(time, event_src.host, subject.account.name, action, subject.process.fullpath, object.fullpath, text) | sort(time desc)
 `
 
 env.var. manipulations for evasion
+
 `
 filter(event_src.vendor = "unix_like"  AND (object.process.cmdline match ".*HISTFILE.*" OR object.process.cmdline match ".*HISTSIZE.*" OR object.process.cmdline match ".*SSH_CLIENT.*" OR object.process.cmdline match ".*SSH_CONNECTION.*")) | select(time, event_src.host, object.process.cmdline, text) | sort(time desc)
 `
 
-###LD_PRELOAD env var in cmdline
+LD_PRELOAD env var in cmdline
+
 `
 filter((event_src.vendor = "unix_like"  AND action = "start" AND object.process.cmdline match ".*LD_PRELOAD.*") AND NOT (object.process.cmdline startswith "env --unset=LD_PRELOAD ")) | select(time, event_src.host, object.process.cmdline, text) | sort(time desc)
 `
 
 rootkit via .ko-file loading
+
 `
 filter(event_src.vendor = "unix_like"  AND action = "start" AND (object.process.fullpath endswith "/insmod" OR object.process.fullpath endswith "/kmod" OR object.process.fullpath endswith "/modinfo") AND NOT (object.process.path match ".*initramfs-tools.*")) | select(time, event_src.host, object.process.cmdline, text) | sort(time desc)
 `
+
 shred usage
+
 `
 filter(event_src.vendor = "unix_like"  AND action = "start" AND object.process.fullpath endswith "shred") | select(time, event_src.host, object.process.cmdline, text) | sort(time desc)
 `
+
 ###Persistence
+
 authorized_keys modification
+
 `
 filter(event_src.vendor = "unix_like" AND object.fullpath match ".*authorized_keys.*"  AND object.state = "w" AND msgid = "openat") | select(time, event_src.host, subject.account.name, action, subject.process.fullpath, object.fullpath, text) | sort(time desc)
 `
+
 cronjob with remote host
+
 `
 filter(event_src.vendor = "unix_like" AND action = "start" AND object.process.cmdline match ".*crontab.*" AND (object.process.cmdline match ".*(([0-9]{1,3}\.){3}[0-9]{1,3}).*" OR object.process.cmdline match ".*([a-z0-9-_]\.[a-z]{2,15}).*")) | select(time, event_src.host, object.process.cmdline, text) | sort(time desc)
 `
 
 init.d files modification
+
 `
 filter(event_src.vendor = "unix_like" AND object.fullpath match ".*/etc/init.d.*"  AND object.state = "w" AND msgid = "openat" AND (subject.process.fullpath != "/usr/bin/dpkg")) | select(time, event_src.host, subject.account.name, action, subject.process.fullpath, object.fullpath, text) | sort(time desc)
 `
 
 persistence via rc.local
+
 `
 filter(event_src.vendor = "unix_like" AND object.fullpath match ".*/etc/rc.local.*"  AND object.state = "w" AND msgid = "openat") | select(time, event_src.host, subject.account.name, action, subject.process.fullpath, object.fullpath, text) | sort(time desc)
 `
 
 shell-configs modification
+
 `
 filter(event_src.vendor = "unix_like" AND (object.fullpath match ".*/\.bashrc.*" OR object.fullpath match ".*/\.profile.*" OR object.fullpath match ".*/\.bash_logout.*") AND NOT object.fullpath endswith "swp" AND msgid = "openat" AND object.state = "w" AND NOT (subject.process.fullpath endswith "/useradd")) | select(time, event_src.host, subject.account.name, action, subject.process.fullpath, object.fullpath, text) | sort(time desc)
 `
-###Webshell activity
+
+### Webshell activity
 
 suspicious server users activity
+
 `
 filter(event_src.vendor = "unix_like" AND action = "start" AND subject.account.name match ".*(www-data|bitrix|mysql|postgres|mongod|confluence|redis|rabbitmq|nginx|tomcat).*" AND object.process.cmdline match ".*(ip |echo|chmod|chown|whoami|ifconfig|wget|curl|nmap|ping|setenforce|arp |ls ).*") | select(time, event_src.host, subject.account.name, object.account.name, object.process.cmdline) | sort(time desc)
 `
 
 www-data user suspicious activity
+
 `
 filter(((event_src.vendor = "unix_like" AND action = "start") AND (subject.account.name = "www-data")) AND (object.process.cmdline startswith "sh -c")) | select(time, event_src.host, object.process.cmdline) | sort(time desc)
 `
@@ -96,7 +121,8 @@ filter(((event_src.vendor = "unix_like" AND action = "start") AND (subject.accou
 ##Windows:
 
 Rundll/regsvr loaded improperly signed dd from susp location
-`
-filter(((object.process.parent.name = "rundll32.exe" OR object.process.parent.name = "regsvr32.exe") AND (object.process.fullpath match "C:\\\ProgramData.*" OR object.process.fullpath match ".*\\\public\\\.*" OR object.process.fullpath match ".*\\\documents\\\.*" OR object.process.fullpath match ".*\\\pictures\\\.*" OR object.process.fullpath match ".*\\\videos\\\.*" OR object.process.fullpath match ".*\\\appdata\\\.*" OR object.process.fullpath match "C:\\\Windows\\\.*") AND NOT (object.process.fullpath match "C:\\\ProgramData\\\Seagull\\\Drivers\\\Temp\\\ss#.*.tmp" OR object.process.fullpath match "C:\\\ProgramData\\\CanonBJ\\\IJPrinter\\\CNMWindows\\\.*" OR object.process.fullpath match ".*\\\Microsoft.Deployment.WindowsInstaller.dll")) AND (event_src.host = "win3.demo.net")) | select(time, event_src.host, text) | sort(time desc)
 
 `
+filter(((object.process.parent.name = "rundll32.exe" OR object.process.parent.name = "regsvr32.exe") AND (object.process.fullpath match "C:\\\ProgramData.*" OR object.process.fullpath match ".*\\\public\\\.*" OR object.process.fullpath match ".*\\\documents\\\.*" OR object.process.fullpath match ".*\\\pictures\\\.*" OR object.process.fullpath match ".*\\\videos\\\.*" OR object.process.fullpath match ".*\\\appdata\\\.*" OR object.process.fullpath match "C:\\\Windows\\\.*") AND NOT (object.process.fullpath match "C:\\\ProgramData\\\Seagull\\\Drivers\\\Temp\\\ss#.*.tmp" OR object.process.fullpath match "C:\\\ProgramData\\\CanonBJ\\\IJPrinter\\\CNMWindows\\\.*" OR object.process.fullpath match ".*\\\Microsoft.Deployment.WindowsInstaller.dll")) AND (event_src.host = "win3.demo.net")) | select(time, event_src.host, text) | sort(time desc)
+`
+
