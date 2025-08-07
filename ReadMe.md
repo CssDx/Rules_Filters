@@ -5,9 +5,9 @@
 ##Linux
 ###Access to critical files
 /etc/passwd in cmdline
-`
+```
 filter(event_src.vendor = "unix_like" AND (action = "start" OR action = "execute") AND object.process.cmdline match ".*/etc/passwd.*") | select(time, event_src.host, subject.account.name, action, object.process.cwd, object.process.cmdline) | sort(time desc)
-`
+```
 /etc/shadow in cmdline
 `
 filter(event_src.vendor = "unix_like" AND (action = "start" OR action = "execute") AND object.process.cmdline match ".*/etc/shadow.*") | select(time, event_src.host, subject.account.name, action, object.process.cwd, object.process.cmdline) | sort(time desc)
@@ -98,4 +98,5 @@ filter(((event_src.vendor = "unix_like" AND action = "start") AND (subject.accou
 Rundll/regsvr loaded improperly signed dd from susp location
 `
 filter(((object.process.parent.name = "rundll32.exe" OR object.process.parent.name = "regsvr32.exe") AND (object.process.fullpath match "C:\\\ProgramData.*" OR object.process.fullpath match ".*\\\public\\\.*" OR object.process.fullpath match ".*\\\documents\\\.*" OR object.process.fullpath match ".*\\\pictures\\\.*" OR object.process.fullpath match ".*\\\videos\\\.*" OR object.process.fullpath match ".*\\\appdata\\\.*" OR object.process.fullpath match "C:\\\Windows\\\.*") AND NOT (object.process.fullpath match "C:\\\ProgramData\\\Seagull\\\Drivers\\\Temp\\\ss#.*.tmp" OR object.process.fullpath match "C:\\\ProgramData\\\CanonBJ\\\IJPrinter\\\CNMWindows\\\.*" OR object.process.fullpath match ".*\\\Microsoft.Deployment.WindowsInstaller.dll")) AND (event_src.host = "win3.demo.net")) | select(time, event_src.host, text) | sort(time desc)
+
 `
